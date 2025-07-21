@@ -61,7 +61,7 @@ async def async_get_triggers(hass, device_id):
     triggers = []
     buttons: dict[str, list[Button]] = hass.data[DOMAIN][DATA_KEY_BUTTONS]
 
-    if device_id in buttons is None:
+    if device_id not in buttons:
         return triggers
     
     _LOGGER.debug("Start populate triggers")
