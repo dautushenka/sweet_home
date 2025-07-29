@@ -34,8 +34,6 @@ from .const import (
 
 from .button import Button
 
-from .mcp23017 import Run, setButtons
-
 _LOGGER = logging.getLogger(__name__)
 
 BUTTON_SCHEMA = vol.Schema(
@@ -76,9 +74,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    from .mcp23017 import Run, setButtons
+
     _LOGGER.info("Start setuping entry")
     config = hass.data[DOMAIN][DATA_KEY_CONFIG]
-    # hass.config_entries.async_setup_platforms(entry, PLATFORMS)
 
     if CONF_SWITCHES not in config:
         _LOGGER.info("There are not switches in config")
@@ -118,12 +117,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][DATA_KEY_BUTTONS] = buttons
     _LOGGER.info("Run handling buttons on mcp23017")
-    setButtons(buttons)
-    Run(_LOGGER)
 
-    # hass.async_add_job(hass.config_entries.flow.async_init(
-    #     DOMAIN
-    # ))
+    await hass.async_add_executor_job(setButtons, buttons)
+    await hass.async_add_executor_job(Run, _LOGGER)
 
     return True
 

@@ -1,6 +1,7 @@
 import smbus
 import signal
 import time
+# import pigpio
 import RPi.GPIO as GPIO
 from .button import Button
 from .binary_sensor import SweetHomeBinarySensor
@@ -62,8 +63,7 @@ def addBynarySensor(sensor: SweetHomeBinarySensor):
     pin = sensor.pin if sensor.pin < 8 else sensor.pin - 8
     code2sensors[get_button_code(sensor.address, port, pin)] = sensor
 
-
-def Run(logger):
+def initialize_mcp23017(logger):
     i2cbus = smbus.SMBus(1)
     logger.info("Configure mcp23017")
     for i2caddress in i2caddresses:
@@ -93,6 +93,17 @@ def Run(logger):
         i2cbus.read_byte_data(i2caddress, INTFA)
         i2cbus.read_byte_data(i2caddress, INTFB)
 
+    i2cbus.close()
+    logger.info("MCP23017 initialized")
+
+def Run(logger):
+    # pi = pigpio.pi()
+    # if not pi.connected:
+        # logger.error("Could not connect to pigpiod")
+        # return
+
+    initialize_mcp23017(logger)
+
     def get_data_code(address, port):
         return "{}-{}".format(address, port)
 
@@ -102,32 +113,36 @@ def Run(logger):
         def interruption_callback(channel):
             logger.debug("Interrupt is occurred on device {}".format(hex(address)))
             time.sleep(20 / 1000)
-            for port in [GPIOA, GPIOB]:
-                data = i2cbus.read_byte_data(address, port)
-                data_code = get_data_code(address, port)
-                prev_data = prev_datas.get(data_code, 0xFF)
-                prev_datas[data_code] = data
-                logger.debug("port {} data {}".format(hex(port), bin(data)))
-                for x in range(8):
-                    value = data & (1 << x)
-                    button_code = get_button_code(address, port, x)
-                    if prev_data & (1 << x) != value:
-                        logger.debug(
-                            "Changed pin {} to {}".format(button_code, value)
-                        )
-                        button = code2buttons.get(button_code)
-                        sensor = code2sensors.get(button_code)
-                        if button is not None:
+            try:
+                i2cbus = smbus.SMBus(1)
+                for port in [GPIOA, GPIOB]:
+                    data = i2cbus.read_byte_data(address, port)
+                    data_code = get_data_code(address, port)
+                    prev_data = prev_datas.get(data_code, 0xFF)
+                    prev_datas[data_code] = data
+                    logger.debug("port {} data {}".format(hex(port), bin(data)))
+                    for x in range(8):
+                        value = data & (1 << x)
+                        button_code = get_button_code(address, port, x)
+                        if prev_data & (1 << x) != value:
                             logger.debug(
-                                "Send change event to button {}".format(button_code)
+                                "Changed pin {} to {}".format(button_code, value)
                             )
-                            button.onChange(value)
-                        elif sensor is not None:
-                            logger.debug(
-                                "Send change event to bynary sensor {}".format(button_code)
-                            )
-                            sensor.onChange(value)
-
+                            button = code2buttons.get(button_code)
+                            sensor = code2sensors.get(button_code)
+                            if button is not None:
+                                logger.debug(
+                                    "Send change event to button {}".format(button_code)
+                                )
+                                button.onChange(value)
+                            elif sensor is not None:
+                                logger.debug(
+                                    "Send change event to bynary sensor {}".format(button_code)
+                                )
+                                sensor.onChange(value)
+                i2cbus.close()
+            except Exception as e:
+                logger.error("Error in interruption callback: {}".format(e))
 
         return interruption_callback
 
