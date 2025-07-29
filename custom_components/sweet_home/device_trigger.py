@@ -7,14 +7,10 @@ from homeassistant.const import (
 )
 from .const import (
     DOMAIN,
-    CONF_PRESS_COUNT,
-    CONF_BUTTONS,
-    CONF_SWITCHES,
     EVENT_SINGLE_PRESS,
     EVENT_DOUBLE_PRESS,
     EVENT_TRIPLE_PRESS,
     EVENT_LONG_PRESS,
-    DATA_KEY_CONFIG,
     DATA_KEY_BUTTONS,
     CONF_SUBTYPE,
     EVENT_TYPE,

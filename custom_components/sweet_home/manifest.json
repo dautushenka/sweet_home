@@ -1,11 +1,11 @@
 {
   "domain": "sweet_home",
-  "name": "Sweet home",
-  "documentation": "",
+  "name": "Sweet Home",
+  "documentation": "https://github.com/dautushenka/sweet_home",
   "config_flow": true,
   "codeowners": ["@dautushenka"],
   "requirements": ["smbus-cffi", "pigpio", "RPi.GPIO"],
   "iot_class": "local_push",
-  "version": "1.0.3",
-  "import_executor": false
+  "version": "1.0.4",
+  "import_executor": true
 }

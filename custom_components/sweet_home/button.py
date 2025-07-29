@@ -12,8 +12,8 @@ from .const import (
     EVENT_TRIPLE_PRESS,
 )
 
-NEXT_PRESS_THRESHOLD = 300
-LONG_PRESS_THRESHOLD = 1000
+NEXT_PRESS_THRESHOLD = 300  # milliseconds
+LONG_PRESS_THRESHOLD = 1000  # milliseconds
 
 
 class Button:
@@ -24,7 +24,7 @@ class Button:
     address: int = None
     pin: int = None
     presses: int = 1
-    pressed_time: int = 0
+    pressed_time: float = 0
     pressed_count: int = 0
 
     longPressTimer: th.Timer = None
@@ -97,7 +97,7 @@ class Button:
             )
             self.longPressTimer.start()
         elif self.pressed_time > 0:
-            duration = time.time() - self.pressed_time
+            duration = (time.time() - self.pressed_time) * 1000  # Convert to milliseconds
             self.pressed_time = 0
             self.__resetLongPressTimer()
             if duration < LONG_PRESS_THRESHOLD:
@@ -108,3 +108,8 @@ class Button:
                         NEXT_PRESS_THRESHOLD / 1000, self.__execPresses
                     )
                     self.nextPressTimer.start()
+                    
+    def cleanup(self) -> None:
+        """Clean up timers on integration unload."""
+        self.__resetLongPressTimer()
+        self.__resetNextPressTimer()
