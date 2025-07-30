@@ -85,7 +85,8 @@ class Button:
             CONF_TYPE: type,
             CONF_SUBTYPE: self.subtype,
         }
-        self.hass.bus.async_fire(EVENT_TYPE, data)
+        # Use async_add_job to ensure the event is fired within the event loop
+        self.hass.async_add_job(self.hass.bus.async_fire, EVENT_TYPE, data)
 
     def onChange(self, value: int) -> None:
         if value == 0:
