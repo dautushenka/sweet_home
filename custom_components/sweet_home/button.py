@@ -1,6 +1,7 @@
 import time
 import threading as th
 from homeassistant.core import HomeAssistant
+from homeassistant.util.async_ import run_callback_threadsafe
 
 from homeassistant.const import CONF_DEVICE_ID, CONF_TYPE
 from .const import (
@@ -86,7 +87,13 @@ class Button:
             CONF_SUBTYPE: self.subtype,
         }
         # Use async_add_job to ensure the event is fired within the event loop
-        self.hass.async_add_job(self.hass.bus.async_fire, EVENT_TYPE, data)
+        run_callback_threadsafe(
+            self.hass.loop,
+            self.hass.bus.async_fire,
+            EVENT_TYPE,
+            data
+        )
+        # self.hass.async_add_job(self.hass.bus.async_fire, EVENT_TYPE, data)
 
     def onChange(self, value: int) -> None:
         if value == 0:
