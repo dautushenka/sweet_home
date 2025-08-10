@@ -1,6 +1,6 @@
-import smbus2 as smbus
-import asyncio
+import smbus
 import time
+# import pigpio
 import RPi.GPIO as GPIO
 from .button import Button
 from .binary_sensor import SweetHomeBinarySensor
@@ -68,7 +68,7 @@ def addBynarySensor(sensor: SweetHomeBinarySensor):
     pin = sensor.pin if sensor.pin < 8 else sensor.pin - 8
     code2sensors[get_button_code(sensor.address, port, pin)] = sensor
 
-async def initialize_mcp23017(logger):
+def initialize_mcp23017(logger):
     """Initialize MCP23017 chips with proper error handling."""
     try:
         i2cbus = smbus.SMBus(1)
@@ -77,31 +77,35 @@ async def initialize_mcp23017(logger):
         for i2caddress in i2caddresses:
             try:
                 # Test if the device is present
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.read_byte_data, i2caddress, IOCONA)
+                i2cbus.read_byte_data(i2caddress, IOCONA)
                 
                 # Configure the MCP23017
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, IOCONA, 0 | CONF["HAEN"] | CONF["INTPOL"] | CONF["MIRROR"])
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, IOCONB, 0 | CONF["HAEN"] | CONF["INTPOL"] | CONF["MIRROR"])
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, IPOLA, 0x00)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, IPOLB, 0x00)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, IODIRA, 0xFF)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, IODIRB, 0xFF)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, GPINTENA, 0xFF)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, GPINTENB, 0xFF)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, INTCONA, 0x00)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, INTCONB, 0x00)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, GPPUA, 0xFF)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, GPPUB, 0xFF)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, DEFVALA, 0xFF)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, DEFVALB, 0xFF)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, GPIOA, 0xFF)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.write_byte_data, i2caddress, GPIOB, 0xFF)
+                i2cbus.write_byte_data(
+                    i2caddress, IOCONA, 0 | CONF["HAEN"] | CONF["INTPOL"] | CONF["MIRROR"]
+                )  # Update configuration register
+                i2cbus.write_byte_data(
+                    i2caddress, IOCONB, 0 | CONF["HAEN"] | CONF["INTPOL"] | CONF["MIRROR"]
+                )  # Update configuration register
+                i2cbus.write_byte_data(i2caddress, IPOLA, 0x00)
+                i2cbus.write_byte_data(i2caddress, IPOLB, 0x00)
+                i2cbus.write_byte_data(i2caddress, IODIRA, 0xFF)
+                i2cbus.write_byte_data(i2caddress, IODIRB, 0xFF)
+                i2cbus.write_byte_data(i2caddress, GPINTENA, 0xFF)
+                i2cbus.write_byte_data(i2caddress, GPINTENB, 0xFF)
+                i2cbus.write_byte_data(i2caddress, INTCONA, 0x00)
+                i2cbus.write_byte_data(i2caddress, INTCONB, 0x00)
+                i2cbus.write_byte_data(i2caddress, GPPUA, 0xFF)
+                i2cbus.write_byte_data(i2caddress, GPPUB, 0xFF)
+                i2cbus.write_byte_data(i2caddress, DEFVALA, 0xFF)
+                i2cbus.write_byte_data(i2caddress, DEFVALB, 0xFF)
+                i2cbus.write_byte_data(i2caddress, GPIOA, 0xFF)
+                i2cbus.write_byte_data(i2caddress, GPIOB, 0xFF)
 
                 # Clear interrupt flags
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.read_byte_data, i2caddress, INTCAPA)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.read_byte_data, i2caddress, INTCAPB)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.read_byte_data, i2caddress, INTFA)
-                await asyncio.get_event_loop().run_in_executor(None, i2cbus.read_byte_data, i2caddress, INTFB)
+                i2cbus.read_byte_data(i2caddress, INTCAPA)
+                i2cbus.read_byte_data(i2caddress, INTCAPB)
+                i2cbus.read_byte_data(i2caddress, INTFA)
+                i2cbus.read_byte_data(i2caddress, INTFB)
                 
                 logger.info(f"MCP23017 at address {hex(i2caddress)} initialized successfully")
                 
@@ -115,10 +119,15 @@ async def initialize_mcp23017(logger):
         logger.error(f"Failed to initialize I2C bus: {e}")
         raise
 
-async def Run(logger):
+def Run(logger):
     """Main loop for handling MCP23017 interrupts."""
+    # pi = pigpio.pi()
+    # if not pi.connected:
+        # logger.error("Could not connect to pigpiod")
+        # return
+
     try:
-        await initialize_mcp23017(logger)
+        initialize_mcp23017(logger)
 
         def get_data_code(address, port):
             return "{}-{}".format(address, port)
@@ -126,15 +135,15 @@ async def Run(logger):
         prev_datas = {}
 
         def get_interruption_callback(address):
-            async def interruption_callback(channel):
+            def interruption_callback(channel):
                 logger.debug("Interrupt occurred on device {}".format(hex(address)))
-                await asyncio.sleep(20 / 1000)  # Debounce delay
+                time.sleep(20 / 1000)  # Debounce delay
                 
                 try:
                     i2cbus = smbus.SMBus(1)
                     for port in [GPIOA, GPIOB]:
                         try:
-                            data = await asyncio.get_event_loop().run_in_executor(None, i2cbus.read_byte_data, address, port)
+                            data = i2cbus.read_byte_data(address, port)
                             data_code = get_data_code(address, port)
                             prev_data = prev_datas.get(data_code, 0xFF)
                             prev_datas[data_code] = data
@@ -158,7 +167,7 @@ async def Run(logger):
                                             "Send change event to button {}".format(button_code)
                                         )
                                         try:
-                                            await asyncio.get_event_loop().run_in_executor(None, button.onChange, value)
+                                            button.onChange(value)
                                         except Exception as e:
                                             logger.error(f"Error handling button event: {e}")
                                             
@@ -167,7 +176,7 @@ async def Run(logger):
                                             "Send change event to binary sensor {}".format(button_code)
                                         )
                                         try:
-                                            await asyncio.get_event_loop().run_in_executor(None, sensor.onChange, value)
+                                            sensor.onChange(value)
                                         except Exception as e:
                                             logger.error(f"Error handling sensor event: {e}")
                                             
@@ -198,13 +207,13 @@ async def Run(logger):
             GPIO.add_event_detect(
                 INTERRUPT_PIN_X20,
                 GPIO.RISING,
-                callback=lambda channel: asyncio.create_task(get_interruption_callback(MCP23017_0X20)(channel)),
+                callback=get_interruption_callback(MCP23017_0X20),
                 bouncetime=50  # Add bounce time to prevent false triggers
             )
             GPIO.add_event_detect(
                 INTERRUPT_PIN_X21,
                 GPIO.RISING,
-                callback=lambda channel: asyncio.create_task(get_interruption_callback(MCP23017_0X21)(channel)),
+                callback=get_interruption_callback(MCP23017_0X21),
                 bouncetime=50  # Add bounce time to prevent false triggers
             )
             
