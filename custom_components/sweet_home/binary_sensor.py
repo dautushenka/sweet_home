@@ -74,7 +74,7 @@ class SweetHomeBinarySensor(BinarySensorEntity):
 
     def onChange(self, value: int) -> None:
         """Handle value change from MCP23017."""
-        self._attr_is_on = value == 0  # Inverted logic for pull-up resistors
+        self._attr_is_on = value > 0
         self.schedule_update_ha_state()
         
     async def async_will_remove_from_hass(self) -> None:

@@ -138,6 +138,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 import RPi.GPIO as GPIO
                 GPIO.cleanup()
                 _LOGGER.info("GPIO cleaned up on HA shutdown")
+                from .mcp23017 import i2cbus
+                i2cbus.close()
             except Exception as e:
                 _LOGGER.error("Error cleaning up GPIO: %s", e)
 

@@ -1,6 +1,5 @@
-import smbus
+from smbus3 import SMBus
 import time
-# import pigpio
 import RPi.GPIO as GPIO
 from .button import Button
 from .binary_sensor import SweetHomeBinarySensor
@@ -47,6 +46,8 @@ i2caddresses = {MCP23017_0X20, MCP23017_0X21}
 code2buttons: dict[str, Button] = {}
 code2sensors: dict[str, SweetHomeBinarySensor] = {}
 
+i2cbus = SMBus(1)
+
 def get_button_code(address, port, pin):
     """Generate a unique code for button/sensor identification."""
     return "{}-{}-{}".format(hex(address), hex(port), pin)
@@ -71,7 +72,6 @@ def addBynarySensor(sensor: SweetHomeBinarySensor):
 def initialize_mcp23017(logger):
     """Initialize MCP23017 chips with proper error handling."""
     try:
-        i2cbus = smbus.SMBus(1)
         logger.info("Configure mcp23017")
         
         for i2caddress in i2caddresses:
@@ -112,7 +112,6 @@ def initialize_mcp23017(logger):
             except Exception as e:
                 logger.warning(f"Failed to initialize MCP23017 at address {hex(i2caddress)}: {e}")
 
-        i2cbus.close()
         logger.info("MCP23017 initialization completed")
         
     except Exception as e:
@@ -137,13 +136,13 @@ def Run(logger):
         def get_interruption_callback(address):
             def interruption_callback(channel):
                 logger.debug("Interrupt occurred on device {}".format(hex(address)))
-                time.sleep(20 / 1000)  # Debounce delay
-                
+
                 try:
-                    i2cbus = smbus.SMBus(1)
+                    time.sleep(10 / 1000)  # Debounce delay
+                    # for port in [INTCAPA, INTCAPB]:
                     for port in [GPIOA, GPIOB]:
                         try:
-                            data = i2cbus.read_byte_data(address, port)
+                            data = i2cbus.read_byte_data(address, INTCAPA if port == GPIOA else INTCAPB)
                             data_code = get_data_code(address, port)
                             prev_data = prev_datas.get(data_code, 0xFF)
                             prev_datas[data_code] = data
@@ -183,8 +182,6 @@ def Run(logger):
                         except Exception as e:
                             logger.error(f"Error reading port {hex(port)}: {e}")
                             
-                    i2cbus.close()
-                    
                 except Exception as e:
                     logger.error("Error in interruption callback: {}".format(e))
 
@@ -208,13 +205,13 @@ def Run(logger):
                 INTERRUPT_PIN_X20,
                 GPIO.RISING,
                 callback=get_interruption_callback(MCP23017_0X20),
-                bouncetime=50  # Add bounce time to prevent false triggers
+                bouncetime=5  # Add bounce time to prevent false triggers
             )
             GPIO.add_event_detect(
                 INTERRUPT_PIN_X21,
                 GPIO.RISING,
                 callback=get_interruption_callback(MCP23017_0X21),
-                bouncetime=50  # Add bounce time to prevent false triggers
+                bouncetime=5  # Add bounce time to prevent false triggers
             )
             
             logger.info("GPIO interrupts configured successfully")

@@ -4,7 +4,7 @@
   "documentation": "https://github.com/dautushenka/sweet_home",
   "config_flow": true,
   "codeowners": ["@dautushenka"],
-  "requirements": ["smbus-cffi", "pigpio", "RPi.GPIO"],
+  "requirements": ["RPi.GPIO", "smbus3"],
   "iot_class": "local_push",
   "version": "1.0.4",
   "import_executor": true
