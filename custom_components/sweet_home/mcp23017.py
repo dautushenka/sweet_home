@@ -1,9 +1,6 @@
-from smbus3 import SMBus
-import time
-import RPi.GPIO as GPIO
-from .button import Button
-from .binary_sensor import SweetHomeBinarySensor
+import logging
 
+_LOGGER = logging.getLogger(__name__)
 
 # Define registers values from datasheet
 IODIRA = 0x00  # IO direction A - 1= input 0 = output
@@ -38,188 +35,67 @@ CONF = {
     "BANK": 1 << 7,  # Controls how the registers are addressed
 }
 
-MCP23017_0X20 = 0x20
-MCP23017_0X21 = 0x21
+class MCP23017:
+    def __init__(self, pi, i2c_bus, address):
+        self.pi = pi
+        self.address = address
+        self.handle = pi.i2c_open(i2c_bus, address)
 
+        # Configure MCP23017
+        self._setup_mcp23017()
 
-i2caddresses = {MCP23017_0X20, MCP23017_0X21}
-code2buttons: dict[str, Button] = {}
-code2sensors: dict[str, SweetHomeBinarySensor] = {}
-
-i2cbus = SMBus(1)
-
-def get_button_code(address, port, pin):
-    """Generate a unique code for button/sensor identification."""
-    return "{}-{}-{}".format(hex(address), hex(port), pin)
-
-def setButtons(buttons: dict[str, list[Button]]):
-    """Register buttons with the MCP23017 handler."""
-    global code2buttons
-    code2buttons.clear()  # Clear existing buttons
-    
-    for btns in buttons.values():
-        for b in btns:
-            port = GPIOB if b.pin > 7 else GPIOA
-            pin = b.pin if b.pin < 8 else b.pin - 8
-            code2buttons[get_button_code(b.address, port, pin)] = b
-
-def addBynarySensor(sensor: SweetHomeBinarySensor):
-    """Register a binary sensor with the MCP23017 handler."""
-    port = GPIOB if sensor.pin > 7 else GPIOA
-    pin = sensor.pin if sensor.pin < 8 else sensor.pin - 8
-    code2sensors[get_button_code(sensor.address, port, pin)] = sensor
-
-def initialize_mcp23017(logger):
-    """Initialize MCP23017 chips with proper error handling."""
-    try:
-        logger.info("Configure mcp23017")
-        
-        for i2caddress in i2caddresses:
-            try:
-                # Test if the device is present
-                i2cbus.read_byte_data(i2caddress, IOCONA)
-                
-                # Configure the MCP23017
-                i2cbus.write_byte_data(
-                    i2caddress, IOCONA, 0 | CONF["HAEN"] | CONF["INTPOL"] | CONF["MIRROR"]
-                )  # Update configuration register
-                i2cbus.write_byte_data(
-                    i2caddress, IOCONB, 0 | CONF["HAEN"] | CONF["INTPOL"] | CONF["MIRROR"]
-                )  # Update configuration register
-                i2cbus.write_byte_data(i2caddress, IPOLA, 0x00)
-                i2cbus.write_byte_data(i2caddress, IPOLB, 0x00)
-                i2cbus.write_byte_data(i2caddress, IODIRA, 0xFF)
-                i2cbus.write_byte_data(i2caddress, IODIRB, 0xFF)
-                i2cbus.write_byte_data(i2caddress, GPINTENA, 0xFF)
-                i2cbus.write_byte_data(i2caddress, GPINTENB, 0xFF)
-                i2cbus.write_byte_data(i2caddress, INTCONA, 0x00)
-                i2cbus.write_byte_data(i2caddress, INTCONB, 0x00)
-                i2cbus.write_byte_data(i2caddress, GPPUA, 0xFF)
-                i2cbus.write_byte_data(i2caddress, GPPUB, 0xFF)
-                i2cbus.write_byte_data(i2caddress, DEFVALA, 0xFF)
-                i2cbus.write_byte_data(i2caddress, DEFVALB, 0xFF)
-                i2cbus.write_byte_data(i2caddress, GPIOA, 0xFF)
-                i2cbus.write_byte_data(i2caddress, GPIOB, 0xFF)
-
-                # Clear interrupt flags
-                i2cbus.read_byte_data(i2caddress, INTCAPA)
-                i2cbus.read_byte_data(i2caddress, INTCAPB)
-                i2cbus.read_byte_data(i2caddress, INTFA)
-                i2cbus.read_byte_data(i2caddress, INTFB)
-                
-                logger.info(f"MCP23017 at address {hex(i2caddress)} initialized successfully")
-                
-            except Exception as e:
-                logger.warning(f"Failed to initialize MCP23017 at address {hex(i2caddress)}: {e}")
-
-        logger.info("MCP23017 initialization completed")
-        
-    except Exception as e:
-        logger.error(f"Failed to initialize I2C bus: {e}")
-        raise
-
-def Run(logger):
-    """Main loop for handling MCP23017 interrupts."""
-    # pi = pigpio.pi()
-    # if not pi.connected:
-        # logger.error("Could not connect to pigpiod")
-        # return
-
-    try:
-        initialize_mcp23017(logger)
-
-        def get_data_code(address, port):
-            return "{}-{}".format(address, port)
-
-        prev_datas = {}
-
-        def get_interruption_callback(address):
-            def interruption_callback(channel):
-                logger.debug("Interrupt occurred on device {}".format(hex(address)))
-
-                try:
-                    time.sleep(10 / 1000)  # Debounce delay
-                    # for port in [INTCAPA, INTCAPB]:
-                    for port in [GPIOA, GPIOB]:
-                        try:
-                            data = i2cbus.read_byte_data(address, INTCAPA if port == GPIOA else INTCAPB)
-                            data_code = get_data_code(address, port)
-                            prev_data = prev_datas.get(data_code, 0xFF)
-                            prev_datas[data_code] = data
-                            
-                            logger.debug("port {} data {}".format(hex(port), bin(data)))
-                            
-                            for x in range(8):
-                                value = data & (1 << x)
-                                button_code = get_button_code(address, port, x)
-                                
-                                if prev_data & (1 << x) != value:
-                                    logger.debug(
-                                        "Changed pin {} to {}".format(button_code, value)
-                                    )
-                                    
-                                    button = code2buttons.get(button_code)
-                                    sensor = code2sensors.get(button_code)
-                                    
-                                    if button is not None:
-                                        logger.debug(
-                                            "Send change event to button {}".format(button_code)
-                                        )
-                                        try:
-                                            button.onChange(value)
-                                        except Exception as e:
-                                            logger.error(f"Error handling button event: {e}")
-                                            
-                                    elif sensor is not None:
-                                        logger.debug(
-                                            "Send change event to binary sensor {}".format(button_code)
-                                        )
-                                        try:
-                                            sensor.onChange(value)
-                                        except Exception as e:
-                                            logger.error(f"Error handling sensor event: {e}")
-                                            
-                        except Exception as e:
-                            logger.error(f"Error reading port {hex(port)}: {e}")
-                            
-                except Exception as e:
-                    logger.error("Error in interruption callback: {}".format(e))
-
-            return interruption_callback
-
-        INTERRUPT_PIN_X20 = 27  # pin 13 / 7
-        INTERRUPT_PIN_X21 = 22  # pin 15 / 8
-
-        logger.info(
-            "Configure GPIO and attach interruptions on ports {}, {}".format(
-                INTERRUPT_PIN_X20, INTERRUPT_PIN_X21
-            )
-        )
-        
+    def _setup_mcp23017(self):
         try:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(INTERRUPT_PIN_X20, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-            GPIO.setup(INTERRUPT_PIN_X21, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            # Test if the device is present
+            self.pi.i2c_read_byte_data(self.handle, IOCONA)
 
-            GPIO.add_event_detect(
-                INTERRUPT_PIN_X20,
-                GPIO.RISING,
-                callback=get_interruption_callback(MCP23017_0X20),
-                bouncetime=5  # Add bounce time to prevent false triggers
-            )
-            GPIO.add_event_detect(
-                INTERRUPT_PIN_X21,
-                GPIO.RISING,
-                callback=get_interruption_callback(MCP23017_0X21),
-                bouncetime=5  # Add bounce time to prevent false triggers
-            )
+            config = 0 | CONF["HAEN"] | CONF["INTPOL"] | CONF["MIRROR"];
+            # Configure the MCP23017
+            self.pi.i2c_write_i2c_block_data(self.handle, IOCONB, [config, config])  # Update 
+
+            # Set all ports as inputs with pull-ups
+            self.pi.i2c_write_i2c_block_data(self.handle, IODIRA, 0xFFFF)  # All inputs
+            self.pi.i2c_write_i2c_block_data(self.handle, GPPUA, 0xFFFF)   # Enable pull-ups
+            self.pi.i2c_write_i2c_block_data(self.handle, IPOLA, 0x0000)
+
+            # Enable interrupts on all pins (change from default)
+            self.pi.i2c_write_i2c_block_data(self.handle, GPINTENA, 0xFFFF)  # Int enable
+            self.pi.i2c_write_i2c_block_data(self.handle, INTCONA, 0x0000) #Int on change
+            self.pi.i2c_write_i2c_block_data(self.handle, GPINTENA, 0xFFFF)
+            self.pi.i2c_write_i2c_block_data(self.handle, DEFVALA, 0xFFFF)
             
-            logger.info("GPIO interrupts configured successfully")
-            
+            # Update configuration register
+            self.pi.i2c_write_i2c_block_data(self.handle, GPIOA, 0xFFFF)
+
+            # Clear interrupt flags
+            self.read_captured_interrupt()
+
+            _LOGGER.info(f"MCP23017 at address {hex(self.address)} initialized successfully")
+
         except Exception as e:
-            logger.error(f"Error configuring GPIO: {e}")
+            _LOGGER.error(f"Failed to initialize MCP23017 at address {hex(self.address)}: {e}")
             raise
-            
-    except Exception as e:
-        logger.error(f"Error in Run function: {e}")
-        raise
+
+    def read_captured_interrupt(self) -> int:
+        """Read interrupt capture register to clear interrupt flag"""
+        (b, int_cap) = self.pi.i2c_read_i2c_block_data(self.handle, INTCAPA, 2)
+        _LOGGER.debug(f"Captured interrupt: {int_cap[0]:08b}-{int_cap[1]:08b}")
+
+        return int_cap[0] | (int_cap[1] << 8)
+
+    def get_interrupt_flag(self) -> int:
+        """Get current interrupt status for both ports"""
+        (b, intf) = self.pi.i2c_read_i2c_block_data(self.handle, INTFA, 2)
+        _LOGGER.debug(f"Interrupt status: {intf[0]:08b}-{intf[1]:08b}")
+        
+        return intf[0] | (intf[1] << 8)
+
+    def read_gpio(self) -> int:
+        """Read current GPIO state"""
+        (b, data) = self.pi.i2c_read_i2c_block_data(self.handle, GPIOA, 2)
+        _LOGGER.debug(f"GPIO Values: {data[0]:08b}-{data[1]:08b}")
+
+        return data[0] | (data[1] << 8)
+
+    def cleanup(self):
+        self.pi.i2c_close(self.handle)

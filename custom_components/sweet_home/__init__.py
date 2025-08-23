@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from .io_pi_plus import IO_Pi_Plus
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant
@@ -77,8 +78,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Sweet Home from a config entry."""
     try:
-        from .mcp23017 import Run, setButtons
-
         _LOGGER.info("Start setting up entry")
         
         # Ensure we have config data
@@ -125,23 +124,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         presses=presses,
                     )
                 )
+            IO_Pi_Plus.addConnectedPins(buttons[device_entry.id])
 
         hass.data[DOMAIN][DATA_KEY_BUTTONS] = buttons
         _LOGGER.info("Run handling buttons on mcp23017")
 
-        await hass.async_add_executor_job(setButtons, buttons)
-        await hass.async_add_executor_job(Run, _LOGGER)
+        await hass.async_add_executor_job(IO_Pi_Plus.run)
 
         def cleanup_gpio(event):
             """Clean up GPIO on HA shutdown."""
             try:
-                import RPi.GPIO as GPIO
-                GPIO.cleanup()
-                _LOGGER.info("GPIO cleaned up on HA shutdown")
-                from .mcp23017 import i2cbus
-                i2cbus.close()
+                IO_Pi_Plus.cleanup()
             except Exception as e:
-                _LOGGER.error("Error cleaning up GPIO: %s", e)
+                _LOGGER.error("Error cleaning up IO_Pi_Plus: %s", e)
 
         hass.bus.async_listen_once("homeassistant_stop", cleanup_gpio)
 
@@ -162,13 +157,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 for button in button_list:
                     button.cleanup()
         
-        # Clean up GPIO
-        try:
-            import RPi.GPIO as GPIO
-            GPIO.cleanup()
-            _LOGGER.info("GPIO cleaned up on unload")
-        except Exception as e:
-            _LOGGER.warning("Error cleaning up GPIO on unload: %s", e)
+        IO_Pi_Plus.cleanup()
             
         return True
         
@@ -181,4 +170,9 @@ async def async_remove_config_entry_device(
     hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
 ) -> bool:
     """Remove a config entry from a device."""
+    try:
+        IO_Pi_Plus.cleanup()
+    except Exception as e:
+        _LOGGER.error("Error cleaning up IO_Pi_Plus: %s", e)
+        
     return True

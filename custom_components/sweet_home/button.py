@@ -4,6 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util.async_ import run_callback_threadsafe
 
 from homeassistant.const import CONF_DEVICE_ID, CONF_TYPE
+from .connected_device import ConnectedPinInterface
 from .const import (
     EVENT_TYPE,
     CONF_SUBTYPE,
@@ -17,7 +18,7 @@ NEXT_PRESS_THRESHOLD = 300  # milliseconds
 LONG_PRESS_THRESHOLD = 1000  # milliseconds
 
 
-class Button:
+class Button(ConnectedPinInterface):
     hass: HomeAssistant = None
     device_id: str
     subtype: str
@@ -47,6 +48,12 @@ class Button:
         self.address = address
         self.pin = pin
         self.presses = presses
+
+    def getAddress(self) -> int:
+        return self.address
+    
+    def getPinNumber(self) -> int:
+        return self.pin
 
     def __reset(self) -> None:
         self.pressed_time = 0

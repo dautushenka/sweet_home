@@ -8,8 +8,10 @@ import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 import homeassistant.helpers.config_validation as cv
+from .connected_device import ConnectedPinInterface
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
+from .io_pi_plus import IO_Pi_Plus
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,21 +43,16 @@ def setup_platform(
     try:
         address = config[CONF_ADDRESS]
         pin = config[CONF_PIN]
+        sensor = SweetHomeBinarySensor(int(address, 16), int(pin));
 
-        add_entities(
-            [
-                SweetHomeBinarySensor(
-                    int(address, 16),
-                    int(pin)
-                )
-            ],
-            True,
-        )
+        add_entities([sensor], True)
+        IO_Pi_Plus.addConnectedPins([sensor])
+        
     except (ValueError, KeyError) as err:
         _LOGGER.error("Error setting up binary sensor: %s", err)
 
 
-class SweetHomeBinarySensor(BinarySensorEntity):
+class SweetHomeBinarySensor(BinarySensorEntity, ConnectedPinInterface):
     """Representation of a Sweet Home binary sensor."""
     
     def __init__(self, address: int, pin: int) -> None:
@@ -68,9 +65,11 @@ class SweetHomeBinarySensor(BinarySensorEntity):
         self._attr_unique_id = f"{DOMAIN}-{hex(address)}-{pin}"
         self._attr_name = f"Binary sensor {hex(address)}-{pin}"
 
-        # Register with MCP23017 handler
-        from .mcp23017 import addBynarySensor
-        addBynarySensor(self)
+    def getAddress(self) -> int:
+        return self.address
+    
+    def getPinNumber(self) -> int:
+        return self.pin
 
     def onChange(self, value: int) -> None:
         """Handle value change from MCP23017."""
